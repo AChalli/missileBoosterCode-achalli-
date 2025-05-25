@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Rocket Trajectory Calculator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        form {
+            display: grid;
+            gap: 10px;
+        }
+        input {
+            width: 100%;
+            padding: 5px;
+        }
+        button {
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        .error {
+            color: red;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+        .info-box {
+            background-color: #f0f0f0;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Rocket Trajectory Calculator</h1>
+
+    <div class="info-box">
+        <h3>Fixed Parameters:</h3>
+        <ul>
+            <li>Missile Diameter: 0.75 meters</li>
+            <li>Propulsion Stack Length: 7.5 meters (total of all stages)</li>
+            <li>Payload: 250 kg</li>
+        </ul>
+    </div>
+
+    {% if error %}
+    <div class="error">{{ error }}</div>
+    {% endif %}
+
+    <form method="POST">
+        <label>Propellant Density (kg/m³):
+            <input type="number" name="propellant_density" step="0.1" value="1500" required>
+        </label>
+
+        <label>Specific Impulse (s):
+            <input type="number" name="isp" step="0.1" value="300" required>
+        </label>
+
+        <h2>Booster 1</h2>
+        <label>Length (m):
+            <input type="number" name="booster1_length" step="0.1" value="3.5" required>
+        </label>
+        <label>Propellant Fraction:
+            <input type="number" name="booster1_fraction" step="0.01" min="0" max="1" value="0.85" required>
+        </label>
+
+        <h2>Booster 2</h2>
+        <label>Length (m):
+            <input type="number" name="booster2_length" step="0.1" value="2.5" required>
+        </label>
+        <label>Propellant Fraction:
+            <input type="number" name="booster2_fraction" step="0.01" min="0" max="1" value="0.87" required>
+        </label>
+
+        <h2>Booster 3</h2>
+        <label>Length (m):
+            <input type="number" name="booster3_length" step="0.1" value="1.5" required>
+        </label>
+        <label>Propellant Fraction:
+            <input type="number" name="booster3_fraction" step="0.01" min="0" max="1" value="0.9" required>
+        </label>
+
+        <label>Launch Angle (degrees):
+            <input type="number" name="launch_angle" value="45" required>
+        </label>
+
+
+                <h2>Calculation Mode</h2>
+        <label>
+          <input type="radio" name="mode" value="standard" checked>
+          Standard (all stages use ΔV = Isp·g·ln(m₀/m₁))
+        </label><br>
+        <label>
+          <input type="radio" name="mode" value="burntime">
+          First stage burn-time limited
+        </label>
+
+        <!-- only show this if “burntime” is selected: -->
+        <div id="burn-time-input" style="margin-top:10px;">
+          <label>First-stage Burn Time (s):
+            <input type="number" name="burn_time" step="0.1" value="10">
+          </label>
+        </div>
+
+        <button type="submit">Calculate Trajectory</button>
+
+        <script>
+          const radios = document.querySelectorAll('input[name="mode"]');
+          const burnDiv = document.getElementById('burn-time-input');
+
+          function updateBurnField() {
+            burnDiv.style.display =
+              document.querySelector('input[name="mode"]:checked').value === 'burntime'
+                ? 'block'
+                : 'none';
+          }
+
+          radios.forEach(r => r.addEventListener('change', updateBurnField));
+          updateBurnField();  // initial
+        </script>
+    </form>
+</body>
+</html>

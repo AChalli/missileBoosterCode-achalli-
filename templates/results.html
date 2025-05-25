@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Rocket Calculation Results</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .results-container {
+            background-color: #f5f5f5;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .graph-container {
+            margin: 30px 0;
+        }
+        img {
+            max-width: 100%;
+            height: auto;
+            border: 1px solid #ddd;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+        }
+        button.secondary {
+            background-color: #2196F3;
+        }
+    </style>
+</head>
+<body>
+    <h1>Rocket Calculation Results</h1>
+
+    <div class="results-container">
+        <h2>Key Results</h2>
+
+        <p>Mode:
+          {% if request.form.mode == 'burntime' %}
+            First-stage burn-time limited (tb={{ request.form.burn_time }} s)
+          {% else %}
+            Standard
+          {% endif %}
+        </p>
+
+        <table>
+            <tr>
+                <th>Parameter</th>
+                <th>Value</th>
+            </tr>
+            <tr>
+                <td>Stage 1 Delta-V</td>
+                <td>{{ results.stage_delta_v[0]|round(2) }} m/s</td>
+            </tr>
+            <tr>
+                <td>Stage 2 Delta-V</td>
+                <td>{{ results.stage_delta_v[1]|round(2) }} m/s</td>
+            </tr>
+            <tr>
+                <td>Stage 3 Delta-V</td>
+                <td>{{ results.stage_delta_v[2]|round(2) }} m/s</td>
+            </tr>
+            <tr>
+                <td>Total Delta-V</td>
+                <td>{{ results.total_delta_v|round(2) }} m/s</td>
+            </tr>
+            <tr>
+                <td>Missile Range</td>
+                <td>{{ results.range_km|round(2) }} km</td>
+            </tr>
+            <tr>
+                <td>Flight Time</td>
+                <td>{{ results.flight_time|round(2) }} seconds</td>
+            </tr>
+        </table>
+
+        <form action="/download-excel" method="post">
+            <!-- Hidden fields to pass data to Excel generation -->
+            <input type="hidden" name="propellant_density" value="{{ request.form.propellant_density }}">
+            <input type="hidden" name="isp" value="{{ request.form.isp }}">
+            <input type="hidden" name="booster1_length" value="{{ request.form.booster1_length }}">
+            <input type="hidden" name="booster1_fraction" value="{{ request.form.booster1_fraction }}">
+            <input type="hidden" name="booster2_length" value="{{ request.form.booster2_length }}">
+            <input type="hidden" name="booster2_fraction" value="{{ request.form.booster2_fraction }}">
+            <input type="hidden" name="booster3_length" value="{{ request.form.booster3_length }}">
+            <input type="hidden" name="booster3_fraction" value="{{ request.form.booster3_fraction }}">
+            <input type="hidden" name="launch_angle" value="{{ request.form.launch_angle }}">
+
+            <button type="submit">Download Excel Report</button>
+            <button type="button" class="secondary" onclick="window.location.href='/'">Calculate New Configuration</button>
+        </form>
+    </div>
+
+    <div class="graph-container">
+        <h2>Missile Trajectory</h2>
+        <img src="data:image/png;base64,{{ trajectory_img }}" alt="Missile Trajectory">
+    </div>
+
+    <div class="graph-container">
+        <h2>Velocity vs Time</h2>
+        <img src="data:image/png;base64,{{ velocity_time_img }}" alt="Velocity vs Time">
+    </div>
+
+    <div class="graph-container">
+        <h2>Delta-V Contribution by Stage</h2>
+        <img src="data:image/png;base64,{{ stage_comparison_img }}" alt="Stage Comparison">
+    </div>
+</body>
+</html>
