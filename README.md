@@ -4,8 +4,8 @@ This Python-based web application simulates the performance of a multi-stage mis
 
 Originally developed as a standalone desktop app, the simulation runs on a local Flask server with a browser-based UI.
 
-_This project was independently designed and implemented with the help of AI tools (like ChatGPT and GitHub Copilot) for debugging and coding assistance. All core logic and architecture decisions were my own.
-_
+_This project was independently designed and implemented with the help of AI tools (like ChatGPT and GitHub Copilot) for debugging and coding assistance. All core logic and architecture decisions were my own._
+
 🔗 **GitHub Repo:** [Missile Booster Simulation](https://github.com/AChalli/missileBoosterCode-achalli-/tree/main)
 
 ## 🚀 Features
