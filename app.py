@@ -1,3 +1,9 @@
+# ---------------------------------------------------------
+# Missile Booster Web App
+# Authored by AChalli with AI-assisted coding review.
+# All core design and final implementation by AChalli.
+# ---------------------------------------------------------
+
 import numpy as np
 from flask import Flask, render_template, request, send_file, Response
 from openpyxl import Workbook
