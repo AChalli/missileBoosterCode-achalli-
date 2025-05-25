@@ -10,10 +10,10 @@ from openpyxl import Workbook
 import io
 import threading
 import webbrowser
-import matplotlib.pyplot as plt
 import matplotlib
-
 matplotlib.use('Agg')  # Use non-interactive backend
+import matplotlib.pyplot as plt
+
 import base64
 from io import BytesIO
 
