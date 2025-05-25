@@ -5,7 +5,7 @@
 # ---------------------------------------------------------
 
 import numpy as np
-from flask import Flask, render_template, request, send_file, Response
+from flask import Flask, render_template, request, send_file
 from openpyxl import Workbook
 import io
 import threading
@@ -17,18 +17,53 @@ import matplotlib.pyplot as plt
 import base64
 from io import BytesIO
 
-import os, sys
-
-if getattr(sys, 'frozen', False):
-    # we’re running in a PyInstaller bundle
-    base_path = sys._MEIPASS
-else:
-    # running in normal Python environment
-    base_path = os.path.abspath(".")
-
-template_dir = os.path.join(base_path, "templates")
 app = Flask(__name__,
-            template_folder=template_dir)
+            template_folder="templates")
+
+def parse_form(form):
+    """
+    Take a Flask form dict and return a kwargs dict
+    ready for calculate_rocket_parameters().
+    """
+    return {
+        'payload_kg':  250,
+        'diameter_m':  0.75,
+        'length_m':    7.5,
+        'propellant_density':  float(form['propellant_density']),
+        'isp':                float(form['isp']),
+        'booster_lengths':    [float(form[f'booster{i}_length']) for i in (1,2,3)],
+        'propellant_fractions':[float(form[f'booster{i}_fraction']) for i in (1,2,3)],
+        'theta_deg':          float(form['launch_angle']),
+        'mode':               form['mode'],
+        'burn_time':          float(form.get('burn_time', 0))
+    }
+
+def build_excel_buffer(results):
+    """
+    Given the results dict from calculate_rocket_parameters,
+    write an Excel workbook and return it as a BytesIO buffer.
+    """
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Rocket Calculation Results"
+
+    rows = [
+        ("Stage 1 ΔV (m/s)", results['stage_delta_v'][0]),
+        ("Stage 2 ΔV (m/s)", results['stage_delta_v'][1]),
+        ("Stage 3 ΔV (m/s)", results['stage_delta_v'][2]),
+        ("Total ΔV (m/s)",  results['total_delta_v']),
+        ("Missile Range (km)", results['range_km']),
+        ("Flight Time (s)",   results['flight_time']),
+    ]
+
+    for idx, (label, val) in enumerate(rows, start=1):
+        ws[f"A{idx}"] = label
+        ws[f"B{idx}"] = val
+
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    return buffer
 
 
 def calculate_rocket_parameters(payload_kg, diameter_m, length_m,
@@ -58,7 +93,7 @@ def calculate_rocket_parameters(payload_kg, diameter_m, length_m,
 
     for i in range(num_boosters):
         # before burning stage i
-        initial_masses.append(current_mass + payload_kg if i==0 else current_mass)
+        initial_masses.append(current_mass)
         # after burning stage i
         final_masses.append(initial_masses[-1] - propellant_masses[i])
         # drop stage i’s dry+propellant
@@ -77,7 +112,6 @@ def calculate_rocket_parameters(payload_kg, diameter_m, length_m,
             v = isp * gravity_mps * np.log(m0/mf)
         delta_v_stages.append(v)
 
-    # 💥 Here’s the missing line you need:
     total_delta_v = sum(delta_v_stages)
 
     # 5) range & flight time
@@ -186,186 +220,66 @@ def generate_stage_comparison_graph(delta_v_stages):
 
     return base64.b64encode(buffer.getvalue()).decode('utf-8')
 
-
 @app.route('/', methods=['GET', 'POST'])
 def rocket_calculator():
     if request.method == 'POST':
-        # Fixed parameters
-        payload_kg = 250
-        diameter_m = 0.75
-        length_m = 7.5
+        # 1) Safe parse of all inputs
+        try:
+            data = parse_form(request.form)
+        except (KeyError, ValueError):
+            # Missing field or non-numeric entry
+            return render_template(
+                'index.html',
+                error="Please enter valid numbers in all fields."
+            )
 
-        # Collect inputs from form
-        propellant_density = float(request.form['propellant_density'])
-        isp = float(request.form['isp'])
+        # 2) Booster-length vs missile-length check
+        total_length = sum(data['booster_lengths'])
+        if abs(total_length - data['length_m']) > 1e-3:
+            return render_template(
+                'index.html',
+                error=(
+                  f"Stage lengths sum to {total_length:.2f} m, "
+                  f"but missile length is {data['length_m']:.2f} m."
+                )
+            )
 
-        # Collect booster lengths and propellant fractions
-        booster_lengths = [
-            float(request.form['booster1_length']),
-            float(request.form['booster2_length']),
-            float(request.form['booster3_length'])
-        ]
+        # 3) Run calculation
+        results = calculate_rocket_parameters(**data)
 
-        propellant_fractions = [
-            float(request.form['booster1_fraction']),
-            float(request.form['booster2_fraction']),
-            float(request.form['booster3_fraction'])
-        ]
-
-        theta_deg = float(request.form['launch_angle'])
-        # after you read theta_deg
-        mode = request.form['mode']  # 'standard' or 'burntime'
-        burn_time = float(request.form.get('burn_time', 0))
-
-        # Check if total booster length matches missile length
-        total_booster_length = sum(booster_lengths)
-        if abs(total_booster_length - length_m) > 0.001:
-            return render_template('index.html',
-                                   error=f"Total booster length ({total_booster_length:.2f}m) does not match required missile length ({length_m}m)")
-
-        # Calculate results
-        results = calculate_rocket_parameters(
-            payload_kg, diameter_m, length_m,
-            propellant_density, isp,
-            booster_lengths, propellant_fractions, theta_deg, mode=mode,
-        burn_time=burn_time
+        # 4) Generate graphs using first-stage ΔV
+        trajectory_img = generate_trajectory_graph(
+            results['stage_delta_v'][0],
+            data['theta_deg']
+        )
+        velocity_time_img = generate_velocity_time_graph(
+            results['stage_delta_v'][0],
+            data['theta_deg']
+        )
+        stage_comparison_img = generate_stage_comparison_graph(
+            results['stage_delta_v']
         )
 
-        # Generate graphs
-        trajectory_img = generate_trajectory_graph(results['total_delta_v'], theta_deg)
-        velocity_time_img = generate_velocity_time_graph(results['total_delta_v'], theta_deg)
-        stage_comparison_img = generate_stage_comparison_graph(results['stage_delta_v'])
+        # 5) Render results page
+        return render_template(
+            'results.html',
+            results=results,
+            trajectory_img=trajectory_img,
+            velocity_time_img=velocity_time_img,
+            stage_comparison_img=stage_comparison_img
+        )
 
-        # Create Excel file
-        wb = Workbook()
-        ws = wb.active
-        ws.title = "Rocket Calculation Results"
-
-        # Add headers and results
-        ws['A1'] = "Parameter"
-        ws['B1'] = "Value"
-        ws['A2'] = "Stage 1 Delta-V (m/s)"
-        ws['B2'] = results['stage_delta_v'][0]
-        ws['A3'] = "Stage 2 Delta-V (m/s)"
-        ws['B3'] = results['stage_delta_v'][1]
-        ws['A4'] = "Stage 3 Delta-V (m/s)"
-        ws['B4'] = results['stage_delta_v'][2]
-        ws['A5'] = "Total Delta-V (m/s)"
-        ws['B5'] = results['total_delta_v']
-        ws['A6'] = "Missile Range (km)"
-        ws['B6'] = results['range_km']
-        ws['A7'] = "Flight Time (s)"
-        ws['B7'] = results['flight_time']
-
-        # Add masses
-        ws['A9'] = "Initial Masses"
-        ws['A10'] = "Stage 1 Initial Mass (kg)"
-        ws['B10'] = results['initial_masses'][0]
-        ws['A11'] = "Stage 2 Initial Mass (kg)"
-        ws['B11'] = results['initial_masses'][1]
-        ws['A12'] = "Stage 3 Initial Mass (kg)"
-        ws['B12'] = results['initial_masses'][2]
-
-        ws['A14'] = "Propellant Masses"
-        ws['A15'] = "Stage 1 Propellant Mass (kg)"
-        ws['B15'] = results['propellant_masses'][0]
-        ws['A16'] = "Stage 2 Propellant Mass (kg)"
-        ws['B16'] = results['propellant_masses'][1]
-        ws['A17'] = "Stage 3 Propellant Mass (kg)"
-        ws['B17'] = results['propellant_masses'][2]
-
-        # Save to a bytes buffer
-        buffer = io.BytesIO()
-        wb.save(buffer)
-        buffer.seek(0)
-
-        # Display results and graphs in the template first
-        return render_template('results.html',
-                               results=results,
-                               trajectory_img=trajectory_img,
-                               velocity_time_img=velocity_time_img,
-                               stage_comparison_img=stage_comparison_img)
-
+    # GET request → show form
     return render_template('index.html')
-
 
 @app.route('/download-excel', methods=['POST'])
 def download_excel():
-    # Same calculation as above but directly return Excel file
-    payload_kg = 250
-    diameter_m = 0.75
-    length_m = 7.5
+    # Parse inputs & calculate
+    data = parse_form(request.form)
+    results = calculate_rocket_parameters(**data)
 
-    propellant_density = float(request.form['propellant_density'])
-    isp = float(request.form['isp'])
-
-    booster_lengths = [
-        float(request.form['booster1_length']),
-        float(request.form['booster2_length']),
-        float(request.form['booster3_length'])
-    ]
-
-    propellant_fractions = [
-        float(request.form['booster1_fraction']),
-        float(request.form['booster2_fraction']),
-        float(request.form['booster3_fraction'])
-    ]
-
-    theta_deg = float(request.form['launch_angle'])
-    # after you read theta_deg
-    mode = request.form['mode']  # 'standard' or 'burntime'
-    burn_time = float(request.form.get('burn_time', 0))
-
-    # Calculate results
-    results = calculate_rocket_parameters(
-        payload_kg, diameter_m, length_m,
-        propellant_density, isp,
-        booster_lengths, propellant_fractions, theta_deg, mode=mode,
-        burn_time=burn_time
-    )
-
-    # Create Excel file
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Rocket Calculation Results"
-
-    # Add headers and results (same as before)
-    ws['A1'] = "Parameter"
-    ws['B1'] = "Value"
-    ws['A2'] = "Stage 1 Delta-V (m/s)"
-    ws['B2'] = results['stage_delta_v'][0]
-    ws['A3'] = "Stage 2 Delta-V (m/s)"
-    ws['B3'] = results['stage_delta_v'][1]
-    ws['A4'] = "Stage 3 Delta-V (m/s)"
-    ws['B4'] = results['stage_delta_v'][2]
-    ws['A5'] = "Total Delta-V (m/s)"
-    ws['B5'] = results['total_delta_v']
-    ws['A6'] = "Missile Range (km)"
-    ws['B6'] = results['range_km']
-    ws['A7'] = "Flight Time (s)"
-    ws['B7'] = results['flight_time']
-
-    # Add masses
-    ws['A9'] = "Initial Masses"
-    ws['A10'] = "Stage 1 Initial Mass (kg)"
-    ws['B10'] = results['initial_masses'][0]
-    ws['A11'] = "Stage 2 Initial Mass (kg)"
-    ws['B11'] = results['initial_masses'][1]
-    ws['A12'] = "Stage 3 Initial Mass (kg)"
-    ws['B12'] = results['initial_masses'][2]
-
-    ws['A14'] = "Propellant Masses"
-    ws['A15'] = "Stage 1 Propellant Mass (kg)"
-    ws['B15'] = results['propellant_masses'][0]
-    ws['A16'] = "Stage 2 Propellant Mass (kg)"
-    ws['B16'] = results['propellant_masses'][1]
-    ws['A17'] = "Stage 3 Propellant Mass (kg)"
-    ws['B17'] = results['propellant_masses'][2]
-
-    # Save to a bytes buffer
-    buffer = io.BytesIO()
-    wb.save(buffer)
-    buffer.seek(0)
+    # Build the Excel buffer
+    buffer = build_excel_buffer(results)
 
     return send_file(
         buffer,
