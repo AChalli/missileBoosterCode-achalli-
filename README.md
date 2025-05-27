@@ -8,7 +8,7 @@ _This project was independently designed and implemented with the help of AI too
 
 🔗 **GitHub Repo:** [Missile Booster Simulation](https://github.com/AChalli/missileBoosterCode-achalli-/tree/main)
 
-🔗 **Loom Code Walkthrough:** (https://www.loom.com/share/08d73a2fe7574a3c933ffc71485294e8?sid=d8b493df-351b-45fc-ae67-e694eae3c2a4)
+🔗 **Loom Code Walkthrough:** [Missile Booster Tool Overview 🚀](https://www.loom.com/share/08d73a2fe7574a3c933ffc71485294e8?sid=d8b493df-351b-45fc-ae67-e694eae3c2a4)
 
 ## 🚀 Features
 
