@@ -1,6 +1,6 @@
 # ---------------------------------------------------------
 # Missile Booster Web App
-# Authored by AChalli with AI-assisted coding review.
+# Authored by AChalli
 # All core design and final implementation by AChalli.
 # ---------------------------------------------------------
 
